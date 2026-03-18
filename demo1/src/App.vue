@@ -1,12 +1,14 @@
 <template>
-  <Modal v-model:visible="isVisible" />
-  <button @click="isVisible = !isVisible">打开弹窗</button>
+  <VirtualList :items="items" />
 </template>
 
 <script setup>
-import Modal from "./components/Modal.vue";
-import { ref } from "vue";
-const isVisible = ref(true);
+import VirtualList from "./components/VirtualList2.vue";
+const items = Array.from({ length: 100 }, (_, index) => ({
+  key: index,
+  estimatedHeight: 10 + index * 10,
+  content: `Item ${index + 1}`,
+}));
 </script>
 
 <style>
