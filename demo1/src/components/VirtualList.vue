@@ -4,7 +4,7 @@
     :style="{ height: containerHeight + 'px' }"
     @scroll="handleScroll"
   >
-    <div :style="{ height: estimatedHeight * items.length + 'px' }"></div>
+    <div :style="{ height: totalHeight + 'px' }"></div>
     <div
       class="virtual-list"
       :style="{
@@ -16,8 +16,7 @@
         v-for="(item, index) in visibleItems"
         :key="item.key"
         :style="{
-          height: estimatedHeight + 'px',
-          lineHeight: estimatedHeight + 'px',
+          height: item.height + 'px',
         }"
       >
         {{ item.content }}
@@ -27,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineProps } from "vue";
+import { ref, computed, defineProps, onMounted } from "vue";
 
 const props = defineProps({
   items: {
@@ -47,20 +46,54 @@ const props = defineProps({
     default: 5,
   },
 });
+
+const preHeight = ref([]);
+const startIndex = ref(0);
+const endIndex = ref(0);
+const visibleCount = ref(10);
 const top = ref(0);
-const startIndex = computed(() =>
-  Math.max(0, Math.floor(top.value / props.estimatedHeight) - props.buffer),
-);
-const visibleItems = computed(() =>
-  props.items.slice(startIndex.value, endIndex.value),
-);
-const endIndex = computed(() =>
-  Math.min(
-    props.items.length,
-    Math.ceil((props.containerHeight + top.value) / props.estimatedHeight) +
-      props.buffer,
-  ),
-);
+
+const lists = Array.from({ length: 100 }).map((_, i) => {
+  return {
+    key: i,
+    content: `Item ${i + 1}`,
+    height: Math.floor(Math.random() * 100 + 50),
+  };
+});
+
+const initHeights = () => {
+  lists.forEach((list, i) => {
+    preHeight.value[i] = (preHeight.value[i - 1] || 0) + list.height;
+  });
+};
+initHeights();
+const totalHeight = computed(() => {
+  return preHeight.value[preHeight.value.length - 1] || 0;
+});
+
+function getCurrentIndex(scrollTop: number, arr) {
+  let left = 0;
+  let right = arr.length - 1;
+  while (left < right) {
+    const mid = Math.floor(left + (right - left) / 2);
+    if (arr[mid] < scrollTop) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+  return left;
+}
+
+function updateRange() {
+  startIndex.value = getCurrentIndex(top.value, preHeight.value) - props.buffer;
+  endIndex.value = startIndex.value + visibleCount.value + props.buffer;
+}
+
+const visibleItems = computed(() => {
+  return lists.slice(startIndex.value, endIndex.value);
+});
+
 const offset = computed(() => {
   return startIndex.value * props.estimatedHeight;
 });
@@ -74,6 +107,11 @@ const handleScroll = (e) => {
     ticking = true;
   }
 };
+onMounted(() => {
+  visibleCount.value =
+    Math.ceil(props.containerHeight / props.estimatedHeight) + props.buffer;
+  updateRange();
+});
 </script>
 
 <style scoped>
