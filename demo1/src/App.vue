@@ -11,7 +11,7 @@ const items = Array.from({ length: 100 }, (_, index) => ({
 }));
 </script>
 
-<style>
+<style scoped>
 * {
   margin: 0;
   padding: 0;
