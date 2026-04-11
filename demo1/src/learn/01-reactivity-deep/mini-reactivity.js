@@ -11,12 +11,28 @@
 // targetMap: WeakMap<target, Map<key, Set<effect>>>
 // activeEffect: 当前正在执行的 effect
 // effectStack: effect 栈（处理嵌套）
+let activeEffect = null;
+const effectStack = [];
+const targetMap = new WeakMap();
 
 /**
  * 收集依赖
  */
 export function track(target, key) {
   // TODO
+  if (activeEffect) {
+    const depMap = targetMap.get(target);
+    if (!depMap) {
+      depMap = new Map();
+      targetMap.set(target, depMap);
+    }
+    const deps = depMap.get(key);
+    if (!deps) {
+      deps = new Set();
+      depMap.set(key, deps);
+    }
+    deps.add(activeEffect);
+  }
 }
 
 /**
@@ -24,6 +40,20 @@ export function track(target, key) {
  */
 export function trigger(target, key) {
   // TODO
+  const depMap = targetMap.get(target);
+  const deps = depMap.get(key);
+  const effectsToRun = new Set(deps);
+  effectsToRun.forEach((fn) => {
+    if (fn !== activeEffect) {
+      if (fn.scheduler) {
+        fn.scheduler();
+      } else {
+        {
+          fn();
+        }
+      }
+    }
+  });
 }
 
 // ============ reactive ============
@@ -32,8 +62,31 @@ export function trigger(target, key) {
  * 将普通对象转为响应式对象（基于 Proxy）
  * 要求：支持嵌套对象的深层响应式
  */
+const reactiveMap = new WeakMap();
 export function reactive(target) {
   // TODO
+  if (target === null && typeof target !== "object") return target;
+  if (reactiveMap.has(target)) return reactiveMap.get(target);
+  const proxy = new Proxy(target, {
+    get(target, key) {
+      const res = Reflect.get(target, key);
+      track(target, key);
+      if (typeof res === "object" && res !== null) {
+        return reactive(res);
+      }
+      return res;
+    },
+    set(target, key, val) {
+      const oldValue = target[key];
+      const res = Reflect.set(target, key, val);
+      if (oldValue !== val) {
+        trigger(target, key);
+      }
+      return res;
+    },
+  });
+  reactiveMap.set(target, proxy);
+  return proxy;
 }
 
 // ============ ref ============
@@ -44,6 +97,17 @@ export function reactive(target) {
  */
 export function ref(value) {
   // TODO
+  const wrapper = {
+    __v_isRef: true,
+    get value() {
+      track(wrapper, "value");
+      return value;
+    },
+    set value(val) {
+      value = val;
+      trigger(wrapper, "value", val);
+    },
+  };
 }
 
 // ============ effect ============

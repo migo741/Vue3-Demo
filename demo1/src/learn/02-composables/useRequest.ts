@@ -36,5 +36,69 @@ export function useRequest<T>(
   options: UseRequestOptions<T> = {},
 ): UseRequestReturn<T> {
   // TODO: 实现
+  const { immediate, initialData, debounceInterval, onSuccess, onError } =
+    options;
+  const data = ref(initialData);
+  const loading = ref(false);
+  const error = ref(null);
+
+  let requestId = 0;
+  let currentPromise = null;
+  let aborted = false;
+  let timer: any = null;
+  let lastArgs: any[] = [];
+
+  const run = (...args: any[]) => {
+    lastArgs = args;
+    if (timer) {
+      clearTimeout(timer);
+    }
+    return new Promise((resolve, reject) => {
+      const exec = () => {
+        const id = ++requestId;
+        loading.value = true;
+        error.value = null;
+        const p = service(...args);
+        currentPromise = p;
+
+        p.then((res) => {
+          if (id !== requestId || aborted) return;
+          data.value = res;
+          onSuccess?.(res);
+          resolve(res);
+        }).catch((err) => {
+          if (id !== requestId) return;
+          error.value = err;
+          onError?.(err);
+          reject(err);
+        });
+      };
+      if (debounceInterval > 0) {
+        timer = setTimeout(exec, debounceInterval);
+      } else {
+        exec();
+      }
+    });
+  };
+  const cancel = () => {
+    aborted = true;
+    loading.value = false;
+  };
+  const refresh = () => {
+    return run(...lastArgs);
+  };
+  const mutate = (newVal) => {
+    data.value = newVal;
+  };
+  onUnmounted(() => {
+    cancel();
+    if (timer) {
+      clearTimeout(timer);
+    }
+    if (immediate) {
+      run();
+    }
+  });
+
   throw new Error("Not implemented");
 }
